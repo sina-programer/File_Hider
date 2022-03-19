@@ -1,13 +1,15 @@
 # File_Hider
 
 ## About the Program:
-With this program, you can convert your files and folders into system files easily. <br>
-Work with the program safely, because path of all hidden files will save and you can see them everywhen you want!
+With this program, you can convert your files and folders into system files and check their states very esaily. <br>
+Work with the program safely, because all your activities will be save(optional) and you can see all files that you have vanished.
 
 **Note:** This program only works on Windows
 
 ### Features:
-- All your activities will record in a log file
+- You can see all files you have vanished!
+- You can scan all hidden files in a directory!
+- You can see state of current file selected!
 - No requirements!
 
 ### Preview:
