@@ -11,7 +11,7 @@ import meta
 import dialogs
 
 
-def load_obj(filename, folder=meta.pickle_parent):
+def load_obj(filename, folder=os.path.dirname(meta.pickle_path)):
     try:
         path = os.path.join(folder, filename)
         assert os.path.exists(path), f"<{filename}> dosn't exist in <{folder}>"
@@ -22,7 +22,7 @@ def load_obj(filename, folder=meta.pickle_parent):
         raise exp
 
 
-def save_obj(obj, obj_name, folder=meta.pickle_parent):
+def save_obj(obj, obj_name, folder=os.path.dirname(meta.pickle_path)):
     try:
         path = os.path.join(folder, obj_name)
         parent = os.path.dirname(path)
@@ -42,13 +42,13 @@ def path_checker(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
         app = args[0]
-        target_path = app.pathVar.get()
-        target_path = os.path.normpath(target_path)
+        target_path = app.path_var.get()
 
         if not target_path:
             messagebox.showerror('ERROR', 'The address field is empty!')
 
         elif os.path.exists(target_path):
+            target_path = os.path.normpath(target_path)
             return func(*args, target_path, **kwargs)
 
         else:
@@ -63,29 +63,31 @@ class App:
         self.master.config(menu=self.init_menu())
 
         self.meta = self.load_meta()
+        self.check_hidden_files()
         self.logger = Logger(self.meta['log_file'])
         self.last_activity = 'You have not been active yet!'
 
-        self.log_path = tk.StringVar()
-        self.log_path.set(self.meta['log_file'])
         self.save_logs = tk.IntVar()
         self.save_logs.set(self.meta['save_logs'])
-        self.pathVar = tk.StringVar()
+        self.path_var = tk.StringVar()
+        self.path_var.trace('w', lambda *args: self.check_state())
 
-        tk.Entry(master, width=50, textvariable=self.pathVar).place(x=100, y=30)
-        tk.Button(master, text='Copy', width=8, command=self.copy2clipboard).place(x=420, y=12)
-        tk.Button(master, text='Browse', width=8, command=self.browse).place(x=420, y=42)
-        tk.Button(master, text='Hide', width=8, command=self.hide_target).place(x=20, y=12)
-        tk.Button(master, text='Show', width=8, command=self.show_target).place(x=20, y=42)
+        self.state_lbl = tk.Label(self.master)
+        tk.Entry(self.master, width=50, textvariable=self.path_var).place(x=100, y=30)
+        tk.Button(self.master, text='Copy', width=8, command=self.copy_path2clipboard).place(x=420, y=12)
+        tk.Button(self.master, text='Browse', width=8, command=self.browse).place(x=420, y=42)
+        tk.Button(self.master, text='Hide', width=8, command=self.hide_target).place(x=20, y=12)
+        tk.Button(self.master, text='Show', width=8, command=self.show_target).place(x=20, y=42)
 
     @path_checker
     def show_target(self, path):
-        if path in self.meta['hidden_files']:
-            command = f'attrib -s -h "{path}"'
-            subprocess.run(command)
+        self.remove_hidden_file(path)
+        if self.check_hide(path):
+            command = ['attrib', '-s', '-h', f"{path}"]
+            subprocess.run(command, shell=True)
+            self.check_state()
 
-            self.remove_hidden_file(path)
-            self.last_activity = f"Show  {self.pathVar.get()}"
+            self.last_activity = f"Show  {path}"
             if self.save_logs.get():
                 self.logger.log(self.last_activity)
             messagebox.showinfo('File Hider', 'The target was successfully unvanished!')
@@ -95,12 +97,13 @@ class App:
 
     @path_checker
     def hide_target(self, path):
-        if path not in self.meta['hidden_files']:
-            command = f'attrib +s +h "{path}"'
-            subprocess.run(command)
+        self.add_hidden_file(path)
+        if not self.check_hide(path):
+            command = ['attrib', '+s', '+h', f"{path}"]
+            subprocess.run(command, shell=True)
+            self.check_state()
 
-            self.add_hidden_file(path)
-            self.last_activity = f"Hide  {self.pathVar.get()}"
+            self.last_activity = f"Hide  {path}"
             if self.save_logs.get():
                 self.logger.log(self.last_activity)
             messagebox.showinfo('File Hider', 'The target was successfully vanished!')
@@ -108,22 +111,50 @@ class App:
         else:
             messagebox.showwarning('File Hider', 'The target is vanished now!')
 
+    def check_hide(self, path):
+        result = subprocess.check_output(['attrib', f"{path}"], shell=True).decode().lower()
+        result = result[:21]
+        if 'h' in result:
+            return True
+        return False
+
+    def check_hidden_files(self):
+        for file in self.meta['hidden_files'].copy():
+            if not self.check_hide(file):
+                self.meta['hidden_files'].remove(file)
+
+    def check_state(self):
+        path = self.path_var.get()
+        if os.path.exists(path):
+            if self.check_hide(path):
+                self.state_lbl.config(text='The file is vanished!', fg='green')
+                self.state_lbl.place(x=220, y=5)
+
+            else:
+                self.state_lbl.config(text='The file is not vanished', fg='red')
+                self.state_lbl.place(x=200, y=5)
+
+        else:
+            self.state_lbl.config(text='')
+
     def browse(self):
         new_path = filedialog.askopenfilename()
         if new_path:
             new_path = os.path.normpath(new_path)
-            self.pathVar.set(new_path)
+            self.path_var.set(new_path)
 
     def load_meta(self):
         if not os.path.exists(meta.pickle_path):
-            if not os.path.exists(meta.pickle_parent):
-                os.mkdir(meta.pickle_parent)
-            subprocess.run(f'attrib +h {meta.pickle_parent}')
+            parent = os.path.dirname(meta.pickle_path)
+            if not os.path.exists(parent):
+                os.mkdir(parent)
+
+            subprocess.run(['attrib', '+h', f"{parent}"])
 
             d = {
                 'log_file': meta.logfile,
-                'save_logs': 1,
-                'hidden_files': []
+                'hidden_files': [],
+                'save_logs': 1
                  }
             save_obj(d, meta.pickle_name)
 
@@ -135,23 +166,20 @@ class App:
             save_obj(self.meta, meta.pickle_name)
 
     def update_logfile(self, logfile):
-        if logfile != self.meta['log_file']:
+        if not os.path.samefile(self.meta['log_file'], logfile):
             self.last_activity = f"Logfile moved to <{logfile}>"
             self.logger.log(self.last_activity)
 
-            self.log_path.set(logfile)
             self.logger.set_logfile(logfile)
             self.logger.log(f"Logfile moved here from <{self.meta['log_file']}>")
 
             self.meta['log_file'] = logfile
             save_obj(self.meta, meta.pickle_name)
 
-            messagebox.showinfo('Moving Logfile',
-                                f'Log file successfully moved to <{logfile}>')
+            messagebox.showinfo('Moving Logfile', f'Log file successfully moved to <{logfile}>')
 
         else:
-            messagebox.showwarning('Moving Logfile',
-                                   'The file selected already is logfile!')
+            messagebox.showwarning('Moving Logfile', 'The file selected already is logfile!')
 
     def add_hidden_file(self, file):
         if file not in self.meta['hidden_files']:
@@ -163,18 +191,18 @@ class App:
             self.meta['hidden_files'].remove(file)
             save_obj(self.meta, meta.pickle_name)
 
-    def copy2clipboard(self):
+    def copy_path2clipboard(self):
         self.master.clipboard_clear()
-        self.master.clipboard_append(self.pathVar.get())
+        self.master.clipboard_append(self.path_var.get())
         messagebox.showinfo(meta.title, 'Path successfully copied!')
 
     def init_menu(self):
         menu = tk.Menu(self.master)
-
+        menu.add_command(label="Open LogFile", command=lambda: os.startfile(self.meta['log_file']))
+        menu.add_command(label="Scan directory", command=lambda: dialogs.ScanDirectoryDialog(self))
         menu.add_command(label="Last Activity", command=lambda: messagebox.showinfo('Last Activity', self.last_activity))
-        menu.add_command(label="Hidden Files", command=lambda: dialogs.HiddensDialog(self.master, self))
-        menu.add_command(label="Setting", command=lambda: dialogs.SettingDialog(self.master, self))
-        menu.add_command(label="Help", command=lambda: messagebox.showinfo('Help', meta.help_msg))
+        menu.add_command(label="Hidden Files", command=lambda: dialogs.HiddensDialog(self))
+        menu.add_command(label="Setting", command=lambda: dialogs.SettingDialog(self))
         menu.add_command(label="About us", command=lambda: dialogs.AboutDialog(self.master))
 
         return menu
@@ -182,11 +210,7 @@ class App:
 
 class Logger:
     def __init__(self, file):
-        if os.path.isabs(file):
-            self.file = file
-        else:
-            self.file = os.path.realpath(file)
-
+        self.file = file
         self.check_new_file()
 
     def log(self, msg, **kwargs):
@@ -200,7 +224,7 @@ class Logger:
         return self.file
 
     def check_new_file(self):
-        if os.path.getsize(self.file) <= 2:
+        if not os.path.exists(self.file) or os.path.getsize(self.file) <= 2:
             self.log('Log file created!', mode='w')
 
     def _write_log(self, msg, mode='a'):
