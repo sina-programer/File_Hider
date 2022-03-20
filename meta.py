@@ -13,19 +13,25 @@ def get_geometry(scr_width, scr_height, width=500, height=80):
 title = 'File Hider'
 main_root = os.getcwd()
 
-pickle_name = 'meta'
-pickle_path = os.path.expanduser(rf'~\.File_Hider\{pickle_name}')
+config_name = 'config'
+config_path = os.path.expanduser(rf'~\.File_Hider\{config_name}')
 
-icon_name = 'icon.ico'
-icon = os.path.join(main_root, 'files', icon_name)
+icon_name = 'icon.png'
+icon_path = os.path.join(main_root, 'files', icon_name)
 
 logfile_name = 'File_Hider.log'
 logfile = os.path.join(main_root, logfile_name)
 
-file_types = (('Log File', '*.log'),
+logfile_types = (('Log File', '*.log'),
               ('Plain Text File', '*.txt'), ('Plain Text File', '*.text'))
 
 links = {
     'github': 'https://github.com/sina-programer',
     'telegram': 'https://t.me/sina_programer'
+}
+
+default_config = {
+    'log_file': logfile,
+    'hidden_files': [],
+    'save_logs': 1
 }
