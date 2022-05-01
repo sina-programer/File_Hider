@@ -79,7 +79,7 @@ class App:
 
         self.config = load_config()
         self.logger = Logger(self.config['log_file'])
-        self.last_activity = 'You have not been active yet!'
+        self.last_activity = "You haven't activity yet!"
         self.check_hidden_files()
 
         self.save_logs = tk.IntVar()
@@ -142,13 +142,15 @@ class App:
             if not self.check_hide(file):
                 self.config['hidden_files'].remove(file)
 
+        save_config(self.config)
+
     def check_state(self):
         path = self.path_var.get()
         if os.path.exists(path):
             if self.check_hide(path):
                 self.state_lbl.config(text='The file is vanished!', fg='green')
             else:
-                self.state_lbl.config(text='The file is non-vanished', fg='red')
+                self.state_lbl.config(text='The file is non-vanished yet', fg='red')
         else:
             self.state_lbl.config(text='')
 
@@ -195,15 +197,20 @@ class App:
         messagebox.showinfo(meta.title, 'Path successfully copied!')
 
     def init_menu(self):
-        menu = tk.Menu(self.master)
-        menu.add_command(label="Open LogFile", command=lambda: os.startfile(self.config['log_file']))
-        menu.add_command(label="Scan directory", command=lambda: dialogs.ScanDirectoryDialog(self))
-        menu.add_command(label="Last Activity", command=lambda: messagebox.showinfo('Last Activity', self.last_activity))
-        menu.add_command(label="Hidden Files", command=lambda: dialogs.HiddensDialog(self))
-        menu.add_command(label="Setting", command=lambda: dialogs.SettingDialog(self))
-        menu.add_command(label="About us", command=lambda: dialogs.AboutDialog(self.master))
+        main_menu = tk.Menu(self.master)
+        scan_menu = tk.Menu(main_menu, tearoff=False)
+        
+        scan_menu.add_command(label="Quick Scan", command=lambda: dialogs.QuickScanDialog(self))
+        scan_menu.add_command(label="Super Scan", command=lambda: dialogs.SuperScanDialog(self))
 
-        return menu
+        main_menu.add_command(label="Open LogFile", command=lambda: os.startfile(self.config['log_file']))
+        main_menu.add_cascade(label="Scan Directory", menu=scan_menu)
+        main_menu.add_command(label="Last Activity", command=lambda: messagebox.showinfo('Last Activity', self.last_activity))
+        main_menu.add_command(label="Hidden Files", command=lambda: dialogs.HiddensDialog(self))
+        main_menu.add_command(label="Setting", command=lambda: dialogs.SettingDialog(self))
+        main_menu.add_command(label="About us", command=lambda: dialogs.AboutDialog(self.master))
+
+        return main_menu
 
 
 class MetaSingleton(type):
